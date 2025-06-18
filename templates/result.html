@@ -1,0 +1,23 @@
+{% if results %}
+<table>
+    <thead>
+        <tr>
+            <th>Classe prédite</th>
+            <th>Confiance</th>
+            <th>Informations sur la maladie</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in results %}
+        <tr>
+            <td>{{ r.predicted_class }}</td>
+            <td>{{ r.confidence }}</td>
+            <td>{{ r.explanation | safe }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Aucun résultat</p>
+{% endif %}
+

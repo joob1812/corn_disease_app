@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Identification des maladies du maïs</title>
+  <style>
+    /* Reset & base */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f7f8;
+      margin: 0; padding: 20px;
+      color: #333;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    section {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin: 20px auto;
+      max-width: 700px;
+      padding: 20px;
+    }
+    /* Upload Form */
+    #upload-form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+    input[type="file"] {
+      cursor: pointer;
+      border: 2px dashed #3498db;
+      border-radius: 8px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      background: #ecf0f1;
+      transition: background-color 0.3s;
+    }
+    input[type="file"]:hover {
+      background: #d6e9ff;
+    }
+    button {
+      background-color: #3498db;
+      border: none;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 5px;
+      font-size: 1.1em;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      min-width: 150px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    /* Preview Images */
+    #preview {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    #preview img {
+      max-width: 120px;
+      max-height: 120px;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      object-fit: cover;
+      border: 2px solid #3498db;
+    }
+
+    /* Webcam */
+    #webcam-section {
+      text-align: center;
+    }
+    #video {
+      border-radius: 8px;
+      border: 2px solid #3498db;
+      max-width: 100%;
+      height: auto;
+    }
+    #capture-btn {
+      margin-top: 10px;
+    }
+
+    /* Results */
+    #results {
+      margin-top: 20px;
+    }
+    .result-item {
+      background: #ecf0f1;
+      padding: 12px 15px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 6px solid #3498db;
+    }
+    .result-item h3 {
+      margin: 0 0 5px 0;
+      color: #2c3e50;
+    }
+    .result-item p {
+      margin: 3px 0;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Identification des maladies du maïs</h1>
+
+  <section id="upload-section">
+    <h2>Upload Images</h2>
+    <form id="upload-form" action="/predict" method="post" enctype="multipart/form-data">
+      <input type="file" id="image-files" name="files" accept="image/*" multiple />
+      <div id="preview"></div>
+      <button type="submit">Predict</button>
+    </form>
+  </section>
+
+  <section id="webcam-section">
+    <h2>Ou utilisez la webcam</h2>
+    <video id="video" width="320" height="240" autoplay muted></video><br />
+    <button id="capture-btn">Capturer & Prédire</button>
+    <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+  </section>
+
+  <section id="results-section">
+    <h2>Résultats</h2>
+    <div id="results"></div>
+  </section>
+
+  <script>
+    // === Preview des images uploadées ===
+    const imageFilesInput = document.getElementById('image-files');
+    const previewDiv = document.getElementById('preview');
+
+    imageFilesInput.addEventListener('change', () => {
+      previewDiv.innerHTML = '';  // clear preview
+      const files = imageFilesInput.files;
+      if(files.length === 0) {
+        previewDiv.innerHTML = '<p>Aucune image sélectionnée.</p>';
+        return;
+      }
+      for(let file of files) {
+        if(!file.type.startsWith('image/')) continue;
+
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          previewDiv.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // === Webcam setup ===
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const captureBtn = document.getElementById("capture-btn");
+    const resultsDiv = document.getElementById("results");
+    const uploadForm = document.getElementById("upload-form");
+
+    async function startWebcam() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Impossible d'accéder à la webcam: " + err.message);
+      }
+    }
+    startWebcam();
+
+    // Capture webcam image & send to backend
+    captureBtn.onclick = async () => {
+      resultsDiv.innerHTML = "Chargement...";
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append("files", blob, "capture.png");
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: formData
+          });
+          const html = await response.text();
+          resultsDiv.innerHTML = html;
+        } catch (error) {
+          resultsDiv.innerHTML = `<p style="color:red;">Erreur: ${error.message}</p>`;
+        }
+      }, 'image/png');
+    };
+
+    // Handle multi-upload form submission via AJAX
+    uploadForm.onsubmit = async (e) => {
+      e.preventDefault();
+      resultsDiv.innerHTML = "Chargement...";
+      const formData = new FormData(uploadForm);
+
+      try {
+        const response = await fetch("/predict", {
+          method: "POST",
+          body: formData
+        });
+        const html = await response.text();
+        resultsDiv.innerHTML = html;
+      } catch (error) {
+        resultsDiv.innerHTML = `<p style="color:red;">Erreur: ${error.message}</p>`;
+      }
+    };
+  </script>
+</body>
+</html>

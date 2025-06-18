@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+jinja2
+torch
+torchvision
+Pillow
+numpy
+efficientnet_pytorch
+python-multipart
